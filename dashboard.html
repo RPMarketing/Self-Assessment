@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field readiness — RainPhil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d131c;
+    --panel:#141b26;
+    --panel-raised:#182130;
+    --border:rgba(255,255,255,0.09);
+    --border-strong:rgba(255,255,255,0.16);
+    --text:#e7ecf2;
+    --text-dim:#8a97a6;
+    --text-faint:#526074;
+    --green:#4fae7d;
+    --amber:#d9a24b;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14.5px;
+    line-height:1.6;
+  }
+  h1,h2,h3,.display{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    letter-spacing:-0.01em;
+    margin:0;
+  }
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:48px 24px 80px;
+  }
+  header.page{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-bottom:36px;
+  }
+  .kicker{color:var(--text-dim); font-size:13px; margin:0 0 8px;}
+  h1{font-size:26px;}
+  .updated{
+    font-size:12.5px;
+    color:var(--text-faint);
+    text-align:right;
+  }
+  button.refresh{
+    margin-top:6px;
+    background:none;
+    border:1px solid var(--border-strong);
+    color:var(--text-dim);
+    padding:6px 12px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+  }
+  button.refresh:hover{color:var(--text); border-color:var(--text-dim);}
+
+  .kpi-strip{
+    display:flex;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:var(--panel);
+    margin-bottom:32px;
+    overflow-x:auto;
+  }
+  .kpi{
+    flex:1 1 0;
+    padding:22px 24px;
+    border-right:1px solid var(--border);
+    min-width:140px;
+  }
+  .kpi:last-child{border-right:none;}
+  .kpi .num{
+    font-size:34px;
+    font-weight:600;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .kpi .lbl{
+    font-size:12.5px;
+    color:var(--text-dim);
+    margin-top:4px;
+  }
+
+  section.block{margin-bottom:40px;}
+  h2.block-title{
+    font-size:16px;
+    margin-bottom:16px;
+    color:var(--text);
+  }
+
+  table.board{
+    width:100%;
+    border-collapse:collapse;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  table.board th{
+    text-align:left;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    color:var(--text-dim);
+    padding:10px 16px;
+    border-bottom:1px solid var(--border);
+    background:var(--panel-raised);
+  }
+  table.board td{
+    padding:13px 16px;
+    border-bottom:1px solid var(--border);
+    font-size:13.5px;
+    vertical-align:top;
+  }
+  table.board tr:last-child td{border-bottom:none;}
+  .dot{
+    display:inline-block;
+    width:8px; height:8px;
+    border-radius:50%;
+    margin-right:8px;
+    vertical-align:middle;
+  }
+  .coverage-num{font-family:'IBM Plex Mono', monospace; color:var(--text-dim);}
+  .no-candidate{color:var(--text-faint);}
+
+  section.brand{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+    border-radius:var(--radius);
+    background:var(--panel);
+    margin-bottom:14px;
+  }
+  .brand-head{
+    padding:16px 18px;
+    border-bottom:1px solid var(--border);
+  }
+  .brand-name{font-family:'Space Grotesk', sans-serif; font-size:16px; font-weight:600;}
+  .brand-meta{color:var(--text-dim); font-size:12.5px; margin-top:3px;}
+
+  .model-row{
+    padding:14px 18px;
+    border-bottom:1px solid var(--border);
+  }
+  .model-row:last-child{border-bottom:none;}
+  .model-top{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    font-size:13.5px;
+    margin-bottom:8px;
+  }
+  .model-name{color:var(--text);}
+  .model-frac{color:var(--text-dim); font-family:'IBM Plex Mono', monospace;}
+  .bar-track{
+    height:5px;
+    background:var(--border-strong);
+    border-radius:3px;
+    overflow:hidden;
+    margin-bottom:8px;
+  }
+  .bar-fill{height:100%; background:var(--green);}
+  .prof-names{font-size:12px; color:var(--text-dim);}
+  .prof-names.empty{color:var(--text-faint);}
+
+  .empty-state, .error-state{
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:40px 28px;
+    background:var(--panel);
+  }
+  .empty-state h2, .error-state h2{font-size:18px; margin-bottom:10px;}
+  .empty-state p, .error-state p{color:var(--text-dim); font-size:13.5px; max-width:52ch;}
+  .error-state{border-color:rgba(217,74,74,0.35);}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <header class="page">
+    <div>
+      <p class="kicker">RainPhil field engineering</p>
+      <h1>Equipment field readiness</h1>
+    </div>
+    <div class="updated">
+      <div id="updatedAt">Loading…</div>
+      <button class="refresh" id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+  <div id="content"></div>
+</div>
+
+<script>
+const API_URL = https://script.google.com/macros/s/AKfycbw8g2ZhIZkVQuchcaPrI9MhYcZkcyMgtSlj84KItV_Hu3Njko6kofogUkQanfD_1w/exec;
+
+const BRANDS = [
+  { name: "Zybio", accent: "#5b8def", models: ["EXM3000", "EMX6000", "EXS2600"] },
+  { name: "Bioer", accent: "#e2703a", models: ["Genepure Pro 9600", "Linegene 96000", "Quantgene 9600"] },
+  { name: "MGI", accent: "#c75b8f", models: ["Cyclone", "E25", "G50", "G99", "G400"] },
+  { name: "Thistle Scientific", accent: "#9b7fd4", models: ["Horizontal Electrophoresis", "Vertical Electrophoresis", "Power Supply", "GDH-BASIC Kit (Safeview)", "UV Transilluminator"] },
+  { name: "Vilber Lourmat", accent: "#4fb8c4", models: ["Ebox", "Bioprint", "Fusion Series", "Newton"] },
+  { name: "Denovix", accent: "#7fa65a", models: ["DS-11", "DS-11FX", "DS-11+", "DS-11FX+", "DSC", "QFX"] }
+];
+
+const PROFICIENT_MIN = 4; // installation AND troubleshooting both >= this to count as proficient
+const CANDIDATE_RATIO = 0.6; // proficient in >= 60% of a brand's models to be a point-person candidate
+
+async function loadData(){
+  const contentEl = document.getElementById("content");
+  document.getElementById("updatedAt").textContent = "Loading…";
+  try{
+    const res = await fetch(API_URL, { cache: "no-store" });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || "Unknown error from backend");
+    render(data.rows || []);
+    document.getElementById("updatedAt").textContent = "Updated " + new Date().toLocaleString();
+  }catch(err){
+    document.getElementById("updatedAt").textContent = "Not connected";
+    contentEl.innerHTML = `
+      <div class="error-state">
+        <h2>Dashboard isn't connected yet</h2>
+        <p>Couldn't load submissions (${escapeHtml(err.message)}). Make sure the Apps Script Web App URL is pasted into the API_URL constant near the top of this file, and that the deployment is set to "Anyone" access.</p>
+      </div>`;
+  }
+}
+
+function latestPerEngineerModel(rows){
+  // dedupe: keep only the most recent submission per (engineer, brand, model)
+  const map = new Map();
+  rows.forEach(r => {
+    const k = [r.engineer, r.brand, r.model].join("||");
+    const existing = map.get(k);
+    if(!existing || new Date(r.timestamp) > new Date(existing.timestamp)){
+      map.set(k, r);
+    }
+  });
+  return Array.from(map.values());
+}
+
+function render(rawRows){
+  const rows = latestPerEngineerModel(rawRows);
+  const contentEl = document.getElementById("content");
+
+  if(rows.length === 0){
+    contentEl.innerHTML = `
+      <div class="empty-state">
+        <h2>No self-checks submitted yet</h2>
+        <p>Once engineers complete the form, proficiency counts and point-person candidates for each brand will show up here automatically.</p>
+      </div>`;
+    return;
+  }
+
+  const totalModels = BRANDS.reduce((n, b) => n + b.models.length, 0);
+  const engineers = new Set(rows.map(r => r.engineer));
+
+  // per model: list of {engineer, proficient}
+  const modelStats = {}; // "brand||model" -> { assessed: [], proficientNames: [] }
+  BRANDS.forEach(b => b.models.forEach(m => { modelStats[b.name + "||" + m] = { assessed: [], proficientNames: [] }; }));
+
+  rows.forEach(r => {
+    const k = r.brand + "||" + r.model;
+    if(!modelStats[k]) return; // ignore rows for models no longer in the config
+    modelStats[k].assessed.push(r.engineer);
+    if(r.installation >= PROFICIENT_MIN && r.troubleshooting >= PROFICIENT_MIN){
+      modelStats[k].proficientNames.push(r.engineer);
+    }
+  });
+
+  let modelsWithCoverage = 0;
+  Object.values(modelStats).forEach(s => { if(s.proficientNames.length > 0) modelsWithCoverage++; });
+  const coveragePct = Math.round((modelsWithCoverage / totalModels) * 100);
+
+  // per brand, per engineer: proficient model count
+  const boardRows = BRANDS.map(brand => {
+    const engProficientCount = {};
+    brand.models.forEach(m => {
+      const s = modelStats[brand.name + "||" + m];
+      s.proficientNames.forEach(name => { engProficientCount[name] = (engProficientCount[name] || 0) + 1; });
+    });
+    const threshold = Math.max(1, Math.ceil(brand.models.length * CANDIDATE_RATIO));
+    const candidates = Object.keys(engProficientCount)
+      .filter(name => engProficientCount[name] >= threshold)
+      .sort((a, b) => engProficientCount[b] - engProficientCount[a])
+      .map(name => ({ name, count: engProficientCount[name] }));
+    return { brand, candidates };
+  });
+
+  contentEl.innerHTML = "";
+
+  // KPI strip
+  const kpiStrip = document.createElement("div");
+  kpiStrip.className = "kpi-strip";
+  kpiStrip.innerHTML = [
+    { num: totalModels, lbl: "models tracked" },
+    { num: engineers.size, lbl: "engineers assessed" },
+    { num: coveragePct + "%", lbl: "models with a proficient engineer" },
+    { num: BRANDS.length, lbl: "brands" }
+  ].map(k => `<div class="kpi"><div class="num">${k.num}</div><div class="lbl">${k.lbl}</div></div>`).join("");
+  contentEl.appendChild(kpiStrip);
+
+  // Point-person board
+  const boardSection = document.createElement("section");
+  boardSection.className = "block";
+  boardSection.innerHTML = `<h2 class="block-title">Point-person candidates by brand</h2>`;
+  const table = document.createElement("table");
+  table.className = "board";
+  table.innerHTML = `<thead><tr><th>Brand</th><th>Candidates</th></tr></thead>`;
+  const tbody = document.createElement("tbody");
+  boardRows.forEach(({ brand, candidates }) => {
+    const tr = document.createElement("tr");
+    const candText = candidates.length
+      ? candidates.map(c => `${c.name} <span class="coverage-num">(${c.count}/${brand.models.length})</span>`).join(", ")
+      : `<span class="no-candidate">No one meets the bar yet</span>`;
+    tr.innerHTML = `
+      <td><span class="dot" style="background:${brand.accent}"></span>${brand.name}</td>
+      <td>${candText}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  boardSection.appendChild(table);
+  contentEl.appendChild(boardSection);
+
+  // Per-brand breakdown
+  const detailSection = document.createElement("section");
+  detailSection.className = "block";
+  detailSection.innerHTML = `<h2 class="block-title">Proficiency by model</h2>`;
+  BRANDS.forEach(brand => {
+    const section = document.createElement("section");
+    section.className = "brand";
+    section.style.setProperty("--accent", brand.accent);
+    const totalAssessedForBrand = new Set(brand.models.flatMap(m => modelStats[brand.name + "||" + m].assessed)).size;
+    section.innerHTML = `
+      <div class="brand-head">
+        <div class="brand-name">${brand.name}</div>
+        <div class="brand-meta">${brand.models.length} models, ${totalAssessedForBrand} engineer${totalAssessedForBrand === 1 ? "" : "s"} assessed</div>
+      </div>
+    `;
+    brand.models.forEach(model => {
+      const s = modelStats[brand.name + "||" + model];
+      const total = s.assessed.length;
+      const pct = total ? Math.round((s.proficientNames.length / total) * 100) : 0;
+      const row = document.createElement("div");
+      row.className = "model-row";
+      row.innerHTML = `
+        <div class="model-top">
+          <span class="model-name">${model}</span>
+          <span class="model-frac">${s.proficientNames.length}/${total || 0} proficient</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${total ? pct : 0}%"></div></div>
+        <div class="prof-names ${s.proficientNames.length ? "" : "empty"}">
+          ${s.proficientNames.length ? "Proficient: " + s.proficientNames.join(", ") : (total ? "Assessed, not yet proficient" : "Not yet assessed")}
+        </div>
+      `;
+      section.appendChild(row);
+    });
+    detailSection.appendChild(section);
+  });
+  contentEl.appendChild(detailSection);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+document.getElementById("refreshBtn").addEventListener("click", loadData);
+loadData();
+</script>
+
+</body>
+</html>
