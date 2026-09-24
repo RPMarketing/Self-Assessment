@@ -184,6 +184,13 @@
   .empty-state h2, .error-state h2{font-size:18px; margin-bottom:10px;}
   .empty-state p, .error-state p{color:var(--text-dim); font-size:13.5px; max-width:52ch;}
   .error-state{border-color:rgba(217,74,74,0.35);}
+
+  .panel{
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:var(--panel);
+  }
+  .note{color:var(--text-dim); font-size:13.5px; margin:0; padding:16px 18px;}
 </style>
 </head>
 <body>
@@ -191,7 +198,7 @@
 <div class="wrap" id="app">
   <header class="page">
     <div>
-      <p class="kicker">RainPhil Life Science Engineer</p>
+      <p class="kicker">RainPhil field engineering</p>
       <h1>Equipment field readiness</h1>
     </div>
     <div class="updated">
@@ -214,8 +221,16 @@ const BRANDS = [
   { name: "Denovix", accent: "#7fa65a", models: ["DS-11", "DS-11FX", "DS-11+", "DS-11FX+", "DSC", "QFX"] }
 ];
 
-const PROFICIENT_MIN = 4; // installation AND troubleshooting both >= this to count as proficient
+const PROFICIENT_MIN = 4; // installation, troubleshooting AND preventative maintenance all >= this to count as proficient
 const CANDIDATE_RATIO = 0.6; // proficient in >= 60% of a brand's models to be a point-person candidate
+
+function isProficient(r){
+  // preventative/calibration === 0 means "not rated" — true for submissions made before
+  // that criterion existed, so older answers still count on the criteria they did rate.
+  const maintOk = r.preventative === 0 || r.preventative >= PROFICIENT_MIN;
+  const calOk = r.calibration === 0 || r.calibration >= PROFICIENT_MIN;
+  return r.installation >= PROFICIENT_MIN && r.troubleshooting >= PROFICIENT_MIN && maintOk && calOk;
+}
 
 async function loadData(){
   const contentEl = document.getElementById("content");
@@ -273,7 +288,7 @@ function render(rawRows){
     const k = r.brand + "||" + r.model;
     if(!modelStats[k]) return; // ignore rows for models no longer in the config
     modelStats[k].assessed.push(r.engineer);
-    if(r.installation >= PROFICIENT_MIN && r.troubleshooting >= PROFICIENT_MIN){
+    if(isProficient(r)){
       modelStats[k].proficientNames.push(r.engineer);
     }
   });
@@ -294,8 +309,48 @@ function render(rawRows){
       .filter(name => engProficientCount[name] >= threshold)
       .sort((a, b) => engProficientCount[b] - engProficientCount[a])
       .map(name => ({ name, count: engProficientCount[name] }));
-    return { brand, candidates };
+    return { brand, candidates, benchDepth: Object.keys(engProficientCount).length };
   });
+
+  // Skill gaps: models with nobody proficient yet
+  const skillGaps = [];
+  BRANDS.forEach(brand => brand.models.forEach(m => {
+    const s = modelStats[brand.name + "||" + m];
+    if(s.proficientNames.length === 0){
+      skillGaps.push({ brand: brand.name, accent: brand.accent, model: m, assessed: s.assessed.length });
+    }
+  }));
+
+  // Company-wide breakdown by criterion
+  const CRIT_DEFS = [
+    { key: "installation", label: "Installation" },
+    { key: "troubleshooting", label: "Troubleshooting" },
+    { key: "preventative", label: "Preventative maintenance" },
+    { key: "calibration", label: "Calibration" }
+  ];
+  const critStats = CRIT_DEFS.map(c => {
+    const rated = (c.key === "preventative" || c.key === "calibration") ? rows.filter(r => r[c.key] > 0) : rows;
+    const proficient = rated.filter(r => r[c.key] >= PROFICIENT_MIN).length;
+    const pct = rated.length ? Math.round((proficient / rated.length) * 100) : null;
+    return { label: c.label, pct, rated: rated.length, proficient };
+  });
+
+  // Engineer leaderboard
+  const engineerStats = {};
+  rows.forEach(r => {
+    if(!engineerStats[r.engineer]) engineerStats[r.engineer] = { assessed: 0, proficient: 0, brands: new Set() };
+    engineerStats[r.engineer].assessed++;
+    if(isProficient(r)){
+      engineerStats[r.engineer].proficient++;
+      engineerStats[r.engineer].brands.add(r.brand);
+    }
+  });
+  const leaderboard = Object.keys(engineerStats).map(name => ({
+    name,
+    assessed: engineerStats[name].assessed,
+    proficient: engineerStats[name].proficient,
+    brandCount: engineerStats[name].brands.size
+  })).sort((a, b) => b.proficient - a.proficient || b.brandCount - a.brandCount);
 
   contentEl.innerHTML = "";
 
@@ -310,28 +365,55 @@ function render(rawRows){
   ].map(k => `<div class="kpi"><div class="num">${k.num}</div><div class="lbl">${k.lbl}</div></div>`).join("");
   contentEl.appendChild(kpiStrip);
 
-  // Point-person board
-  const boardSection = document.createElement("section");
-  boardSection.className = "block";
-  boardSection.innerHTML = `<h2 class="block-title">Point-person candidates by brand</h2>`;
-  const table = document.createElement("table");
-  table.className = "board";
-  table.innerHTML = `<thead><tr><th>Brand</th><th>Candidates</th></tr></thead>`;
-  const tbody = document.createElement("tbody");
-  boardRows.forEach(({ brand, candidates }) => {
-    const tr = document.createElement("tr");
-    const candText = candidates.length
-      ? candidates.map(c => `${c.name} <span class="coverage-num">(${c.count}/${brand.models.length})</span>`).join(", ")
-      : `<span class="no-candidate">No one meets the bar yet</span>`;
-    tr.innerHTML = `
-      <td><span class="dot" style="background:${brand.accent}"></span>${brand.name}</td>
-      <td>${candText}</td>
+  // Skill gaps
+  const gapsSection = document.createElement("section");
+  gapsSection.className = "block";
+  gapsSection.innerHTML = `<h2 class="block-title">Skill gaps</h2>`;
+  if(skillGaps.length === 0){
+    const panel = document.createElement("div");
+    panel.className = "panel";
+    panel.innerHTML = `<p class="note">Every model has at least one proficient engineer.</p>`;
+    gapsSection.appendChild(panel);
+  } else {
+    const gapTable = document.createElement("table");
+    gapTable.className = "board";
+    gapTable.innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Status</th></tr></thead>`;
+    const gapBody = document.createElement("tbody");
+    skillGaps.forEach(g => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${g.model}</td>
+        <td><span class="dot" style="background:${g.accent}"></span>${g.brand}</td>
+        <td class="no-candidate">${g.assessed ? g.assessed + " assessed, none proficient yet" : "Not yet assessed"}</td>
+      `;
+      gapBody.appendChild(tr);
+    });
+    gapTable.appendChild(gapBody);
+    gapsSection.appendChild(gapTable);
+  }
+  contentEl.appendChild(gapsSection);
+
+  // Skill area breakdown
+  const critSection = document.createElement("section");
+  critSection.className = "block";
+  critSection.innerHTML = `<h2 class="block-title">Skill area breakdown</h2>`;
+  const critPanel = document.createElement("div");
+  critPanel.className = "panel";
+  critStats.forEach(c => {
+    const row = document.createElement("div");
+    row.className = "model-row";
+    const display = c.pct === null ? "No ratings yet" : `${c.pct}% at proficient level (${c.proficient}/${c.rated})`;
+    row.innerHTML = `
+      <div class="model-top">
+        <span class="model-name">${c.label}</span>
+        <span class="model-frac">${display}</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${c.pct || 0}%"></div></div>
     `;
-    tbody.appendChild(tr);
+    critPanel.appendChild(row);
   });
-  table.appendChild(tbody);
-  boardSection.appendChild(table);
-  contentEl.appendChild(boardSection);
+  critSection.appendChild(critPanel);
+  contentEl.appendChild(critSection);
 
   // Per-brand breakdown
   const detailSection = document.createElement("section");
@@ -369,6 +451,52 @@ function render(rawRows){
     detailSection.appendChild(section);
   });
   contentEl.appendChild(detailSection);
+
+  // Engineer coverage
+  const leaderSection = document.createElement("section");
+  leaderSection.className = "block";
+  leaderSection.innerHTML = `<h2 class="block-title">Engineer coverage</h2>`;
+  const leaderTable = document.createElement("table");
+  leaderTable.className = "board";
+  leaderTable.innerHTML = `<thead><tr><th>Engineer</th><th>Models assessed</th><th>Proficient</th><th>Brands covered</th></tr></thead>`;
+  const leaderBody = document.createElement("tbody");
+  leaderboard.forEach(e => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${e.name}</td>
+      <td class="coverage-num">${e.assessed}/${totalModels}</td>
+      <td class="coverage-num">${e.proficient}</td>
+      <td class="coverage-num">${e.brandCount}/${BRANDS.length}</td>
+    `;
+    leaderBody.appendChild(tr);
+  });
+  leaderTable.appendChild(leaderBody);
+  leaderSection.appendChild(leaderTable);
+  contentEl.appendChild(leaderSection);
+
+  // Point-person board
+  const boardSection = document.createElement("section");
+  boardSection.className = "block";
+  boardSection.innerHTML = `<h2 class="block-title">Point-person candidates by brand</h2>`;
+  const table = document.createElement("table");
+  table.className = "board";
+  table.innerHTML = `<thead><tr><th>Brand</th><th>Bench depth</th><th>Candidates</th></tr></thead>`;
+  const tbody = document.createElement("tbody");
+  boardRows.forEach(({ brand, candidates, benchDepth }) => {
+    const tr = document.createElement("tr");
+    const candText = candidates.length
+      ? candidates.map(c => `${c.name} <span class="coverage-num">(${c.count}/${brand.models.length})</span>`).join(", ")
+      : `<span class="no-candidate">No one meets the bar yet</span>`;
+    tr.innerHTML = `
+      <td><span class="dot" style="background:${brand.accent}"></span>${brand.name}</td>
+      <td class="coverage-num">${benchDepth} ${benchDepth === 1 ? "engineer" : "engineers"}</td>
+      <td>${candText}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  boardSection.appendChild(table);
+  contentEl.appendChild(boardSection);
 }
 
 function escapeHtml(s){
