@@ -329,11 +329,18 @@ const LEVELS = [
   { v: 5, label: "Expert — could train others" }
 ];
 
-const TOTAL_MODELS = BRANDS.reduce((n, b) => n + b.models.length, 0);
-const TOTAL_CRITERIA = TOTAL_MODELS * 2;
-const DRAFT_KEY = "rainphil_skills_draft_v1";
+const CRITERIA = [
+  { key: "installation", label: "Installation" },
+  { key: "troubleshooting", label: "Troubleshooting" },
+  { key: "preventative", label: "Maintenance" },
+  { key: "calibration", label: "Calibration" }
+];
 
-let ratings = {};   // key "brand||model" -> { installation, troubleshooting }
+const TOTAL_MODELS = BRANDS.reduce((n, b) => n + b.models.length, 0);
+const TOTAL_CRITERIA = TOTAL_MODELS * CRITERIA.length;
+const DRAFT_KEY = "rainphil_skills_draft_v2";
+
+let ratings = {};   // key "brand||model" -> { installation, troubleshooting, preventative }
 let engineerName = "";
 
 function keyOf(brand, model){ return brand + "||" + model; }
@@ -356,8 +363,7 @@ function saveDraft(){
 function ratedCount(){
   let n = 0;
   for(const k in ratings){
-    if(ratings[k].installation) n++;
-    if(ratings[k].troubleshooting) n++;
+    CRITERIA.forEach(c => { if(ratings[k][c.key]) n++; });
   }
   return n;
 }
@@ -369,9 +375,9 @@ function render(){
   const header = document.createElement("header");
   header.className = "page";
   header.innerHTML = `
-    <p class="kicker">RainPhil Life Science Engineer</p>
+    <p class="kicker">RainPhil field engineering</p>
     <h1>Equipment skills self-check</h1>
-    <p class="lede">Rate yourself on installation and troubleshooting for every model you may be assigned to. Answer where you actually stand today, not where you'd like to be — this shapes who gets called for each brand.</p>
+    <p class="lede">Rate yourself on installation, troubleshooting, preventive maintenance, and calibration for every model you may be assigned to. Answer where you actually stand today, not where you'd like to be — this shapes who gets called for each brand.</p>
   `;
   app.appendChild(header);
 
@@ -414,18 +420,18 @@ function render(){
 
     brand.models.forEach(model => {
       const k = keyOf(brand.name, model);
-      if(!ratings[k]) ratings[k] = { installation: 0, troubleshooting: 0 };
+      if(!ratings[k]) ratings[k] = { installation: 0, troubleshooting: 0, preventative: 0, calibration: 0 };
 
       const row = document.createElement("div");
       row.className = "model-row";
       row.innerHTML = `<div class="model-name">${model}</div>`;
 
-      ["installation", "troubleshooting"].forEach(crit => {
+      CRITERIA.forEach(c => {
         const group = document.createElement("div");
         group.className = "rate-group";
         const label = document.createElement("span");
         label.className = "rg-label";
-        label.textContent = crit === "installation" ? "Installation" : "Troubleshooting";
+        label.textContent = c.label;
         group.appendChild(label);
 
         const btnRow = document.createElement("div");
@@ -435,9 +441,9 @@ function render(){
           btn.type = "button";
           btn.textContent = l.v;
           btn.title = l.label;
-          if(ratings[k][crit] === l.v) btn.classList.add("sel");
+          if(ratings[k][c.key] === l.v) btn.classList.add("sel");
           btn.addEventListener("click", () => {
-            ratings[k][crit] = l.v;
+            ratings[k][c.key] = l.v;
             btnRow.querySelectorAll("button").forEach(b => b.classList.remove("sel"));
             btn.classList.add("sel");
             saveDraft();
@@ -495,7 +501,7 @@ async function submit(){
     engineer: engineerName.trim(),
     ratings: Object.keys(ratings).map(k => {
       const [brand, model] = k.split("||");
-      return { brand, model, installation: ratings[k].installation, troubleshooting: ratings[k].troubleshooting };
+      return { brand, model, installation: ratings[k].installation, troubleshooting: ratings[k].troubleshooting, preventative: ratings[k].preventative, calibration: ratings[k].calibration };
     })
   };
 
